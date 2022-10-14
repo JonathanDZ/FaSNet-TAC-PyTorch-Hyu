@@ -12,6 +12,8 @@ import librosa
 import torch
 import torch.utils.data as data
 
+import json
+
 # read 'tr' or 'val' or 'test' mixture path
 def read_scp(opt_data, mix):
 
@@ -20,6 +22,7 @@ def read_scp(opt_data, mix):
 
     scp_dict= []
     for l in lines:
+        # remove all white spaces before and after each line of strings and split it based on white spaces
         scp_parts = l.strip().split()
         scp_dict.append(scp_parts)
         
@@ -64,6 +67,98 @@ class AudioDataset(data.Dataset):
 
     def __len__(self):
         return len(self.minibatch)
+
+
+# @BJ speaker angle dataset
+class SpkAngleDataset(data.Dataset):
+    def __init__(self, opt_data, batch_size = 3, sample_rate=16000, nmic=6, rg="0-15"):
+        super(SpkAngleDataset, self).__init__()
+        '''
+        opt_data : 'tr', 'val', 'test'
+        batch_size : default 3
+        sample_rate : 16000
+        nmic : # of channel ex) fixed :6mic
+        nsample : all sample/nmic
+        
+        '''
+      
+        #read data path
+        json_path = "/root/SpeechSeparation/TAC-FaSNet-DPRNN/data/pth_json"
+        if rg == "0-15":
+            json_file = os.path.join(json_path, "fixed-test-speaker-angle-0-15.json")
+        elif rg == "15-45":
+            json_file = os.path.join(json_path, "fixed-test-speaker-angle-15-45.json")
+        elif rg == "45-90":
+            json_file = os.path.join(json_path, "fixed-test-speaker-angle-45-90.json")
+        elif rg == "90-180":
+            json_file = os.path.join(json_path, "fixed-test-speaker-angle-90-180.json")
+        
+        with open(json_file, "r") as f:
+            data_path = json.load(f)
+        
+        nsample = len(data_path)
+
+        minibatch = []
+        for i in range(nsample//batch_size):
+            mix = []
+            for j in range(batch_size):
+                mix.append(data_path[batch_size*i+j])
+            minibatch.append([mix])
+        
+        self.minibatch = minibatch
+                            
+    def __getitem__(self, index):
+        return self.minibatch[index]
+
+    def __len__(self):
+        return len(self.minibatch)
+
+
+
+# @BJ overlap ratio dataset
+class OverlapRatioDataset(data.Dataset):
+    def __init__(self, opt_data, batch_size = 3, sample_rate=16000, nmic=6, rg="0-25"):
+        super(OverlapRatioDataset, self).__init__()
+        '''
+        opt_data : 'tr', 'val', 'test'
+        batch_size : default 3
+        sample_rate : 16000
+        nmic : # of channel ex) fixed :6mic
+        nsample : all sample/nmic
+        
+        '''
+      
+        #read data path
+        json_path = "/root/SpeechSeparation/TAC-FaSNet-DPRNN/data/pth_json"
+        if rg == "0-25":
+            json_file = os.path.join(json_path, "fixed-test-overlap-ratio-0-25.json")
+        elif rg == "25-50":
+            json_file = os.path.join(json_path, "fixed-test-overlap-ratio-25-50.json")
+        elif rg == "50-75":
+            json_file = os.path.join(json_path, "fixed-test-overlap-ratio-50-75.json")
+        elif rg == "75-100":
+            json_file = os.path.join(json_path, "fixed-test-overlap-ratio-75-100.json")
+        
+        with open(json_file, "r") as f:
+            data_path = json.load(f)
+        
+        nsample = len(data_path)
+
+        minibatch = []
+        for i in range(nsample//batch_size):
+            mix = []
+            for j in range(batch_size):
+                mix.append(data_path[batch_size*i+j])
+            minibatch.append([mix])
+        
+        self.minibatch = minibatch
+                            
+    def __getitem__(self, index):
+        return self.minibatch[index]
+
+    def __len__(self):
+        return len(self.minibatch)
+
     
     
 # read wav file in batch for tr, val      
@@ -95,13 +190,16 @@ def _collate_fn(batch):
     sr = 16000
     nmic =6
 
+    # batch (1,1,3)
     assert len(batch) == 1
     
     total_mix = []
     total_src = []
+    # i is the path to /sample* directory
     for i in batch[0][0]:
         
-        mix_list=[]        
+        mix_list=[]
+        # # TODO: I can change here to support adhoc configuration
         for n in range(nmic):
             mix_path = os.path.join(i,'mixture_mic{0}.wav'.format(n+1)) 
 

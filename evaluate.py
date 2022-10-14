@@ -16,7 +16,7 @@ from collections import OrderedDict
 import numpy as np
 import torch
 
-from data import AudioDataset, EvalAudioDataLoader
+from data import AudioDataset, EvalAudioDataLoader, OverlapRatioDataset, SpkAngleDataset
 from FaSNet import FaSNet_TAC
 
 
@@ -61,6 +61,12 @@ parser.add_argument('--segment_size', default=50, type=int, help="segment_size")
 parser.add_argument('--nspk', default=2, type=int, help='Maximum number of speakers')
 parser.add_argument('--mic', default=6, type=int, help='number of microphone')
 
+# @BJ support result evaluation for different configuration
+parser.add_argument('--split_type', default="overlap_ratio", type=str, 
+                    help = 'split a subset of test data to evaluate performance on specific kind of data,\
+                            either can be "overlap_ratio" or "speaker_angle" or None')
+parser.add_argument('--rg', default="0-25", type=str, help='which range of data do you want to evaluate')
+
 
 def evaluate(args):
     total_SISNRi = 0
@@ -91,8 +97,13 @@ def evaluate(args):
     print(model)
     model.eval()
 
-    # Load data    
-    dataset = AudioDataset('test', batch_size = 1, sample_rate = args.sample_rate, nmic = args.mic)
+    # @BJ Load data based on different split configuration
+    if args.split_type == "overlap_ratio":
+        dataset = OverlapRatioDataset('test', batch_size=1, sample_rate=args.sample_rate, nmic=args.mic, rg=args.rg)
+    elif args.split_type == "speaker_angle":
+        dataset = SpkAngleDataset('test', batch_size=1, sample_rate=args.sample_rate, nmic=args.mic, rg=args.rg)
+    else:
+        dataset = AudioDataset('test', batch_size = 1, sample_rate = args.sample_rate, nmic = args.mic)
     data_loader = EvalAudioDataLoader(dataset, batch_size=1, num_workers=8)
     
     sisnr_array=[]

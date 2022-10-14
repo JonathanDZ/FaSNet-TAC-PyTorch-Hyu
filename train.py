@@ -7,6 +7,11 @@ Edited by: yoonsanghyu  2020/04
 
 """
 
+# # @BJ Single card training
+# import os
+# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"]='1'
+
 import argparse
 import torch
 
@@ -48,7 +53,7 @@ parser.add_argument('--max_norm', default=5, type=float, help='Gradient norm thr
 # minibatch
 parser.add_argument('--shuffle', default=1, type=int, help='reshuffle the data at every epoch')
 parser.add_argument('--drop', default=0, type=int, help='drop files shorter than this')
-parser.add_argument('--batch_size', default=3, type=int, help='Batch size')
+parser.add_argument('--batch_size', default=4, type=int, help='Batch size')
 parser.add_argument('--num_workers', default=4, type=int, help='Number of workers to generate minibatch')
 
 
@@ -76,8 +81,9 @@ def main(args):
     # data
     tr_dataset = AudioDataset('tr', batch_size = args.batch_size, sample_rate= args.sample_rate, nmic = args.mic)
     cv_dataset = AudioDataset('val', batch_size = args.batch_size, sample_rate= args.sample_rate, nmic = args.mic)
-    tr_loader = AudioDataLoader(tr_dataset, batch_size=1, shuffle=args.shuffle, num_workers=0) #num_workers=0 for PC
-    cv_loader = AudioDataLoader(cv_dataset, batch_size=1, num_workers=0) #num_workers=0 for PC
+    # BJ: change number of workers to 8, according to Asteroid TAC setting
+    tr_loader = AudioDataLoader(tr_dataset, batch_size=1, shuffle=args.shuffle, num_workers=8) #num_workers=0 for PC
+    cv_loader = AudioDataLoader(cv_dataset, batch_size=1, num_workers=8) #num_workers=0 for PC
 
     data = {'tr_loader': tr_loader, 'cv_loader': cv_loader}
 

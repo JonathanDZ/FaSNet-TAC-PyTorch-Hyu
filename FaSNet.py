@@ -352,13 +352,13 @@ class FaSNet_TAC(FaSNet_base):
 
 
 def test_model(model):
-    x = torch.rand(2, 4, 32000)  # (batch, num_mic, length)
-    num_mic = torch.from_numpy(np.array([2, 3, 4, 5, 6])).view(-1,).type(x.type())  # ad-hoc array
-    print(num_mic)
+    x = torch.rand(3, 6, 64000)  # (batch, num_mic, length)
+    # num_mic = torch.from_numpy(np.array([1, 3, 4, 5, 6])).view(-1,).type(x.type())  # ad-hoc array
+    # print(num_mic)
     none_mic = torch.zeros(1).type(x.type())  # fixed-array
-    y1 = model(x, num_mic.long())
-    #y2 = model(x, none_mic.long())
-    print(y1.shape)  # (batch, nspk, length)
+    # y1 = model(x, num_mic.long())
+    y2 = model(x, none_mic.long())
+    print(y2.shape)  # (batch, nspk, length)
 
 
 if __name__ == "__main__":

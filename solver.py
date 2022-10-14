@@ -158,6 +158,10 @@ class Solver(object):
             
             x = torch.rand(2, 4, 32000)
             none_mic = torch.zeros(1).type(x.type())
+
+            # @BJ add support for multi-cards training
+            none_mic = none_mic.repeat(len(range(torch.cuda.device_count())),1)
+
             estimate_source = self.model(padded_mixture, none_mic.long())
                         
             loss, max_snr, estimate_source, reorder_estimate_source = \
