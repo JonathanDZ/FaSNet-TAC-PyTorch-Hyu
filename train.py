@@ -15,7 +15,7 @@ Edited by: yoonsanghyu  2020/04
 import argparse
 import torch
 
-from data import AudioDataset, AudioDataLoader
+from data import AudioDataset, AudioDataLoader, AdhocDataset, AdhocDataLoader
 
 from FaSNet import FaSNet_TAC
 from solver import Solver
@@ -75,15 +75,27 @@ parser.add_argument('--nseed', default=-1, help='Numpy random seed', type=int)
 # logging
 parser.add_argument('--print_freq', default=1000, type=int, help='Frequency of printing training infomation')
 
+
+# @BJ switch between adhoc and fixed array configuration
+parser.add_argument('--array_type', default="adhoc", type=str, help='Enable one of the training mode, either can be "fixed" or "adhoc"')
+
 def main(args):
 
     
     # data
-    tr_dataset = AudioDataset('tr', batch_size = args.batch_size, sample_rate= args.sample_rate, nmic = args.mic)
-    cv_dataset = AudioDataset('val', batch_size = args.batch_size, sample_rate= args.sample_rate, nmic = args.mic)
-    # BJ: change number of workers to 8, according to Asteroid TAC setting
-    tr_loader = AudioDataLoader(tr_dataset, batch_size=1, shuffle=args.shuffle, num_workers=8) #num_workers=0 for PC
-    cv_loader = AudioDataLoader(cv_dataset, batch_size=1, num_workers=8) #num_workers=0 for PC
+    # @BJ Switch between fixed mode and adhoc mode
+    if args.array_type == "fixed":
+        tr_dataset = AudioDataset('tr', batch_size = args.batch_size, sample_rate= args.sample_rate, nmic = args.mic)
+        cv_dataset = AudioDataset('val', batch_size = args.batch_size, sample_rate= args.sample_rate, nmic = args.mic)
+        # BJ: change number of workers to 8, according to Asteroid TAC setting
+        tr_loader = AudioDataLoader(tr_dataset, batch_size=1, shuffle=args.shuffle, num_workers=0) #num_workers=0 for PC
+        cv_loader = AudioDataLoader(cv_dataset, batch_size=1, num_workers=0) #num_workers=0 for PC
+    elif args.array_type == "adhoc":
+        tr_dataset = AdhocDataset('tr', batch_size = args.batch_size, sample_rate= args.sample_rate, max_mics = args.mic)
+        cv_dataset = AdhocDataset('val', batch_size = args.batch_size, sample_rate= args.sample_rate, max_mics = args.mic)
+        # BJ: change number of workers to 8, according to Asteroid TAC setting
+        tr_loader = AdhocDataLoader(tr_dataset, batch_size=1, shuffle=args.shuffle, num_workers=0) #num_workers=0 for PC
+        cv_loader = AdhocDataLoader(cv_dataset, batch_size=1, num_workers=0) #num_workers=0 for PC
 
     data = {'tr_loader': tr_loader, 'cv_loader': cv_loader}
 

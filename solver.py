@@ -18,6 +18,7 @@ import numpy as np
 
 from pit_criterion import cal_loss
 
+import json
 
 class Solver(object):
     
@@ -150,19 +151,27 @@ class Solver(object):
         for i, (data) in enumerate(data_loader):
             
             padded_mixture, mixture_lengths, padded_source = data
+
+            # @BJ extract adhoc num_mic configuration
+            # NOTE: if adhoc mode is enabled, num_mic will be appended after mixture_lengths to form a (2,B) shape tensor
+            # if mixture_lengths has 2 dimentions, it simply means it's in adhoc mode
+            if mixture_lengths.dim() == 2:
+                num_mic = mixture_lengths[1]
+                mixture_lengths = mixture_lengths[0]
+            else:
+                x = torch.rand(2, 4, 32000)
+                num_mic = torch.zeros(1).type(x.type())
+
+                # @BJ add support for multi-cards training
+                num_mic = num_mic.repeat(len(range(torch.cuda.device_count())),1)
             
             if self.use_cuda:
                 padded_mixture = padded_mixture.cuda()
                 mixture_lengths = mixture_lengths.cuda()
                 padded_source = padded_source.cuda()
             
-            x = torch.rand(2, 4, 32000)
-            none_mic = torch.zeros(1).type(x.type())
 
-            # @BJ add support for multi-cards training
-            none_mic = none_mic.repeat(len(range(torch.cuda.device_count())),1)
-
-            estimate_source = self.model(padded_mixture, none_mic.long())
+            estimate_source = self.model(padded_mixture, num_mic.long())
                         
             loss, max_snr, estimate_source, reorder_estimate_source = \
                 cal_loss(padded_source, estimate_source, mixture_lengths)

@@ -333,21 +333,19 @@ class FaSNet_TAC(FaSNet_base):
         bf_signal = bf_signal.view(batch_size, nmic, self.num_spk, -1)  # B, nmic, nspk, T
         #print(bf_signal.shape)
         # consider only the valid channels
-        #if num_mic.max() == 0:
-        bf_signal = bf_signal.mean(1)  # B, nspk, T
-        '''
+        if num_mic.max() == 0:
+            bf_signal = bf_signal.mean(1)  # B, nspk, T
         else:
-            
-            bf=[]
-            for b in range(batch_size):
-                bf.append(bf_signal[b,:num_mic[b]].mean(0).unsqueeze(0))
-                print('22',bf_signal[b,:num_mic[b]].shape)
+            # @BJ change back to Luo's original implementation
+            # bf=[]
+            # for b in range(batch_size):
+            #     bf.append(bf_signal[b,:num_mic[b]].mean(0).unsqueeze(0))
+            #     print('22',bf_signal[b,:num_mic[b]].shape)
                 
-            bf_signal = torch.cat(bf, 0)
-            #bf_signal = [bf_signal[b,:num_mic[b]].mean(0).unsqueeze(0) for b in range(batch_size)]  # nspk, T
-            
-            #bf_signal = torch.cat(bf_signal, 0)  # B, nspk, T
-        '''
+            # bf_signal = torch.cat(bf, 0)
+            bf_signal = [bf_signal[b,:num_mic[b]].mean(0).unsqueeze(0) for b in range(batch_size)]  # nspk, T
+            bf_signal = torch.cat(bf_signal, 0)  # B, nspk, T
+        
         return bf_signal
 
 
