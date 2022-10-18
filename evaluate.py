@@ -16,7 +16,7 @@ from collections import OrderedDict
 import numpy as np
 import torch
 
-from data import AudioDataset, EvalAudioDataLoader, OverlapRatioDataset, SpkAngleDataset
+from data import AdhocDataLoader, AdhocTestDataset, AudioDataset, EvalAudioDataLoader, OverlapRatioDataset, SpkAngleDataset
 from FaSNet import FaSNet_TAC
 
 
@@ -59,13 +59,20 @@ parser.add_argument('--hidden_dim', default=128, type=int, help='Hidden dimensio
 parser.add_argument('--layer', default=4, type=int, help='Number of layer in dprnn step')
 parser.add_argument('--segment_size', default=50, type=int, help="segment_size")
 parser.add_argument('--nspk', default=2, type=int, help='Maximum number of speakers')
-parser.add_argument('--mic', default=6, type=int, help='number of microphone')
-
+parser.add_argument('--mic', default=6, type=int, help='number of microphone') 
 # @BJ support result evaluation for different configuration
-parser.add_argument('--split_type', default="overlap_ratio", type=str, 
+parser.add_argument('--split_type', default="overlap_ratio", type=str, choices=[None, 'overlap_ratio', 'speaker_angle'],
                     help = 'split a subset of test data to evaluate performance on specific kind of data,\
                             either can be "overlap_ratio" or "speaker_angle" or None')
-parser.add_argument('--rg', default="0-25", type=str, help='which range of data do you want to evaluate')
+parser.add_argument('--rg', default="0-25",type=str, choices=[None, '0-25', '25-50', '50-75', '75-100', '0-15', '15-45', '45-90', '90-180', 'all'],
+                    help='which range of data do you want to evaluate')
+
+# @BJ switch between adhoc and fixed array configuration
+parser.add_argument('--array_type', default="adhoc", type=str, choices=['fixed', 'adhoc'],
+                    help='Enable one of the training mode, either can be "fixed" or "adhoc"')
+
+parser.add_argument('--num_mic', default=2, type=int, choices=[2,4,6],
+                    help='number of micphones when evaluate in adhoc mode') # set it as 2/4/6 for different adhoc dataset evaluation
 
 
 def evaluate(args):
@@ -97,14 +104,20 @@ def evaluate(args):
     print(model)
     model.eval()
 
-    # @BJ Load data based on different split configuration
-    if args.split_type == "overlap_ratio":
-        dataset = OverlapRatioDataset('test', batch_size=1, sample_rate=args.sample_rate, nmic=args.mic, rg=args.rg)
-    elif args.split_type == "speaker_angle":
-        dataset = SpkAngleDataset('test', batch_size=1, sample_rate=args.sample_rate, nmic=args.mic, rg=args.rg)
-    else:
-        dataset = AudioDataset('test', batch_size = 1, sample_rate = args.sample_rate, nmic = args.mic)
-    data_loader = EvalAudioDataLoader(dataset, batch_size=1, num_workers=8)
+    # @BJ switch between adhoc mode and fixed mode
+    if args.array_type == "adhoc":
+        # usage example:"python evaluate.py --array_type adhoc --num_mic 6 --rg 75-100"
+        dataset = AdhocTestDataset('test', batch_size=1, sample_rate=args.sample_rate, num_mic= args.num_mic, rg = args.rg)
+        data_loader = AdhocDataLoader(dataset, batch_size=1, num_workers=8)
+    elif args.array_type == "fixed":
+        # @BJ Load data based on different split configuration
+        if args.split_type == "overlap_ratio":
+            dataset = OverlapRatioDataset('test', batch_size=1, sample_rate=args.sample_rate, nmic=args.mic, rg=args.rg)
+        elif args.split_type == "speaker_angle":
+            dataset = SpkAngleDataset('test', batch_size=1, sample_rate=args.sample_rate, nmic=args.mic, rg=args.rg)
+        else:
+            dataset = AudioDataset('test', batch_size = 1, sample_rate = args.sample_rate, nmic = args.mic)
+        data_loader = EvalAudioDataLoader(dataset, batch_size=1, num_workers=8)
     
     sisnr_array=[]
     sdr_array=[]
@@ -112,16 +125,27 @@ def evaluate(args):
         for i, (data) in enumerate(data_loader):
             # Get batch data
             padded_mixture, mixture_lengths, padded_source = data
+
+            # @BJ extract adhoc num_mic configuration
+            # NOTE: if adhoc mode is enabled, num_mic will be appended after mixture_lengths to form a (2,B) shape tensor
+            # if mixture_lengths has 2 dimentions, it simply means it's in adhoc mode
+            if mixture_lengths.dim() == 2:
+                num_mic = mixture_lengths[1]
+                mixture_lengths = mixture_lengths[0]
+            else:
+                x = torch.rand(2, 4, 32000)
+                num_mic = torch.zeros(1).type(x.type())
+
+                # @BJ add support for multi-cards training
+                num_mic = num_mic.repeat(len(range(torch.cuda.device_count())),1)
             
             if args.use_cuda:
                 padded_mixture = padded_mixture.cuda()
                 mixture_lengths = mixture_lengths.cuda()
                 padded_source = padded_source.cuda()
-            
-            x = torch.rand(2, 6, 32000)
-            none_mic = torch.zeros(1).type(x.type())        
+                
             # Forward
-            estimate_source = model(padded_mixture, none_mic.long())  # [M, C, T]
+            estimate_source = model(padded_mixture, num_mic.long())  # [M, C, T]
             
             
             loss, max_snr, estimate_source, reorder_estimate_source = \

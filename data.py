@@ -205,6 +205,45 @@ class AdhocDataset(data.Dataset):
         return len(self.minibatch)
 
 
+# @BJ adhoc testing dataset
+class AdhocTestDataset(data.Dataset):
+    def __init__(self, opt_data, batch_size = 3, sample_rate = 16000, num_mic = 6, rg = "0-25"):
+        super(AdhocTestDataset, self).__init__()
+        '''
+        opt_data : 'tr', 'val', 'test'
+        batch_size : default 3
+        sample_rate : 16000
+        nmic : # of channel ex) adhoc :2/4/6mic
+        nsample : all sample/nmic
+        
+        '''
+
+        # read data path
+        json_path = "/root/SpeechSeparation/TAC-FaSNet-DPRNN/data/pth_json"
+        json_name = "adhoc-test-"+str(num_mic)+"mic-"+rg+".json"
+
+        json_file = os.path.join(json_path, json_name)
+
+        with open(json_file, "r") as f:
+            data_path = json.load(f)
+        
+        nsample = len(data_path)
+
+        minibatch = []
+        for i in range(nsample//batch_size):
+            mix = []
+            for j in range(batch_size):
+                mix.append(data_path[batch_size*i+j])
+            minibatch.append([mix])
+        
+        self.minibatch = minibatch
+
+    def __getitem__(self, index):
+        return self.minibatch[index]
+
+    def __len__(self):
+        return len(self.minibatch)
+
     
 # read wav file in batch for tr, val      
 class AudioDataLoader(data.DataLoader):
