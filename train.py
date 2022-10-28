@@ -20,6 +20,8 @@ from data import AudioDataset, AudioDataLoader, AdhocDataset, AdhocDataLoader
 from FaSNet import FaSNet_TAC
 from solver import Solver
 
+# @BJ import iFasnet model
+from iFaSNet import iFaSNet
 
 parser = argparse.ArgumentParser( "FaSNet + TAC model")
 
@@ -33,12 +35,12 @@ parser.add_argument('--cv_maxlen', default=20, type=float, help='max audio lengt
 
 # Network architecture
 parser.add_argument('--enc_dim', default=64, type=int, help='Number of filters in autoencoder')
-parser.add_argument('--win_len', default=4, type=int, help='Number of convolutional blocks in each repeat')
+parser.add_argument('--win_len', default=16, type=int, help='Number of convolutional blocks in each repeat') # fasnet:4, ifasnet:16
 parser.add_argument('--context_len', default=16, type=int, help='context window size')
 parser.add_argument('--feature_dim', default=64, type=int, help='feature dimesion')
 parser.add_argument('--hidden_dim', default=128, type=int, help='Hidden dimension')
-parser.add_argument('--layer', default=4, type=int, help='Number of layer in dprnn step')
-parser.add_argument('--segment_size', default=50, type=int, help="segment_size")
+parser.add_argument('--layer', default=6, type=int, help='Number of layer in dprnn step') # fasnet:4, ifasnet:6
+parser.add_argument('--segment_size', default=24, type=int, help="segment_size") # fasnet:50, ifasnet:24
 parser.add_argument('--nspk', default=2, type=int, help='Maximum number of speakers')
 parser.add_argument('--mic', default=6, type=int, help='number of microphone')
 
@@ -77,7 +79,12 @@ parser.add_argument('--print_freq', default=1000, type=int, help='Frequency of p
 
 
 # @BJ switch between adhoc and fixed array configuration
-parser.add_argument('--array_type', default="adhoc", type=str, help='Enable one of the training mode, either can be "fixed" or "adhoc"')
+parser.add_argument('--array_type', default="adhoc", type=str, choices=["fixed", "adhoc"],
+                    help='Enable one of the training mode, either can be "fixed" or "adhoc"')
+
+# @BJ change to iFasnet model
+parser.add_argument('--model', default= "ifasnet", type=str, choices=["ifasnet", "fasnet"],
+                    help="choose different model for training")
 
 def main(args):
 
@@ -99,8 +106,12 @@ def main(args):
 
     data = {'tr_loader': tr_loader, 'cv_loader': cv_loader}
 
-    # model
-    model = FaSNet_TAC(enc_dim=args.enc_dim, feature_dim=args.feature_dim, hidden_dim=args.hidden_dim, layer=args.layer, segment_size=args.segment_size, 
+    # @BJ choose between fasnet/ifasnet model
+    if args.model == "fasnet":
+        model = FaSNet_TAC(enc_dim=args.enc_dim, feature_dim=args.feature_dim, hidden_dim=args.hidden_dim, layer=args.layer, segment_size=args.segment_size, 
+                            nspk=args.nspk, win_len=args.win_len, context_len=args.context_len, sr=args.sample_rate)
+    elif args.model == "ifasnet":
+        model = iFaSNet(enc_dim=args.enc_dim, feature_dim=args.feature_dim, hidden_dim=args.hidden_dim, layer=args.layer, segment_size=args.segment_size, 
                            nspk=args.nspk, win_len=args.win_len, context_len=args.context_len, sr=args.sample_rate)
     
     k = sum(p.numel() for p in model.parameters() if p.requires_grad)
