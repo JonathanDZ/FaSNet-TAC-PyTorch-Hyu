@@ -18,6 +18,7 @@ import torch
 
 from data import AdhocDataLoader, AdhocTestDataset, AudioDataset, EvalAudioDataLoader, OverlapRatioDataset, SpkAngleDataset
 from FaSNet import FaSNet_TAC
+from iFaSNet import iFaSNet
 
 
 def remove_pad(inputs, inputs_lengths):
@@ -52,12 +53,12 @@ parser.add_argument('--sample_rate', default=16000, type=int, help='Sample rate'
 
 # Network architecture
 parser.add_argument('--enc_dim', default=64, type=int, help='Number of filters in autoencoder')
-parser.add_argument('--win_len', default=4, type=int, help='Number of convolutional blocks in each repeat')
+parser.add_argument('--win_len', default=4, type=int, help='Number of convolutional blocks in each repeat') # fasnet:4, ifasnet:16
 parser.add_argument('--context_len', default=16, type=int, help='context window size')
 parser.add_argument('--feature_dim', default=64, type=int, help='feature dimesion')
 parser.add_argument('--hidden_dim', default=128, type=int, help='Hidden dimension')
-parser.add_argument('--layer', default=4, type=int, help='Number of layer in dprnn step')
-parser.add_argument('--segment_size', default=50, type=int, help="segment_size")
+parser.add_argument('--layer', default=4, type=int, help='Number of layer in dprnn step') # fasnet:4, ifasnet:6
+parser.add_argument('--segment_size', default=50, type=int, help="segment_size") # fasnet:50, ifasnet:24
 parser.add_argument('--nspk', default=2, type=int, help='Maximum number of speakers')
 parser.add_argument('--mic', default=6, type=int, help='number of microphone') 
 # @BJ support result evaluation for different configuration
@@ -74,6 +75,10 @@ parser.add_argument('--array_type', default="adhoc", type=str, choices=['fixed',
 parser.add_argument('--num_mic', default=2, type=int, choices=[2,4,6],
                     help='number of micphones when evaluate in adhoc mode') # set it as 2/4/6 for different adhoc dataset evaluation
 
+# @BJ change to iFasnet model
+parser.add_argument('--model', default= "fasnet", type=str, choices=["ifasnet", "fasnet"],
+                    help="choose different model for training")
+
 
 def evaluate(args):
     total_SISNRi = 0
@@ -82,7 +87,11 @@ def evaluate(args):
 
     # Load model
 
-    model = FaSNet_TAC(enc_dim=args.enc_dim, feature_dim=args.feature_dim, hidden_dim=args.hidden_dim, layer=args.layer, segment_size=args.segment_size, 
+    if args.model == "fasnet":
+        model = FaSNet_TAC(enc_dim=args.enc_dim, feature_dim=args.feature_dim, hidden_dim=args.hidden_dim, layer=args.layer, segment_size=args.segment_size, 
+                           nspk=args.nspk, win_len=args.win_len, context_len=args.context_len, sr=args.sample_rate)
+    elif args.model == "ifasnet":
+        model = iFaSNet(enc_dim=args.enc_dim, feature_dim=args.feature_dim, hidden_dim=args.hidden_dim, layer=args.layer, segment_size=args.segment_size, 
                            nspk=args.nspk, win_len=args.win_len, context_len=args.context_len, sr=args.sample_rate)
     
     if args.use_cuda:

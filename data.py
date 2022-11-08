@@ -487,3 +487,129 @@ def _collate_fn_adhoc(batch):
     config_info = torch.stack((ilens_torch, num_mic))
 
     return mix_torch, config_info, src_torch
+
+
+
+# @BJ adhoc train/validation dataset with conventional dataset and dataloader setting 
+# (read single data each time in dataset, and load a batch in dataloader)
+class AdhocDataset2(data.Dataset):
+    def __init__(self, opt_data, sample_rate=16000, max_mics=6):
+        super(AdhocDataset2, self).__init__()
+        '''
+        opt_data : 'tr', 'val', 'test'
+        batch_size : default 3
+        sample_rate : 16000
+        max_mic : # of max channel ex) adhoc :nmic <= 6mic
+        nsample : all sample/nmic
+        
+        '''
+
+        # read data path
+        json_path = "/root/SpeechSeparation/TAC-FaSNet-DPRNN/data/pth_json"
+
+        if opt_data == 'tr':
+            json_file = os.path.join(json_path, "adhoc-train-all.json")
+        elif opt_data == 'val':
+            json_file = os.path.join(json_path, "adhoc-validation-all.json")
+        
+        with open(json_file, "r") as f:
+            data_path = json.load(f)
+        
+        self.fullEpoch = data_path
+
+                            
+    def __getitem__(self, index):
+        return self.fullEpoch[index]
+
+    def __len__(self):
+        return len(self.fullEpoch)
+
+
+
+# @BJ read adhoc wav file in batch for tr, val
+# NOTE: for adhoc training mode, it returns a stack of ilens & num_mic instead of only ilens info
+class AdhocDataLoader2(data.DataLoader):
+    """
+    NOTE: just use batchsize=1 here, so drop_last=True makes no sense here.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(AdhocDataLoader2, self).__init__(*args, **kwargs)
+        self.collate_fn = _collate_fn_adhoc2
+        
+def _collate_fn_adhoc2(batch):
+    
+    """
+    Args:
+        batch: list, len(batch) = 1. See AudioDataset.__getitem__()
+    Returns:
+        mix_torch: B x ch x T, torch.Tensor
+        [ilens_torch, num_mic] : 2 x B, torch.Tentor
+        src_torch: B x C x T, torch.Tensor
+        
+    ex)
+    torch.Size([3, 6, 64000])
+    tensor([[64000, 64000, 64000], [6, 6, 6]], dtype=torch.int32)
+    torch.Size([3, 2, 64000])
+    """
+    
+    sr = 16000
+    max_mics = 6
+
+    # batch (B,2)
+    total_mix = []
+    total_src = []
+
+    num_mic = []
+    # i is the path to /sample* directory
+    for i, nmic in batch:
+        
+        mix_list = []
+        for n in range(nmic):
+            mix_path = os.path.join(i,'mixture_mic{0}.wav'.format(n+1)) 
+
+            mix, _ = librosa.load(mix_path, sr)
+            mix_list.append(mix)
+                      
+            # we only use first mic for source signal            
+            if n == 0:
+                s1_path = os.path.join(i,'spk1_mic{0}.wav'.format(n+1))
+                s2_path = os.path.join(i,'spk2_mic{0}.wav'.format(n+1))
+                
+                s1, _ = librosa.load(s1_path, sr)
+                s2, _ = librosa.load(s2_path, sr)
+                
+                src_list = [s1,s2]
+
+
+        src_np = np.asarray(src_list,dtype=np.float32)
+        mix_np = np.asarray(mix_list,dtype=np.float32)
+
+        # padded to 'max_mics'
+        if mix_np.shape[0] < max_mics:
+            dummy = np.zeros((max_mics - mix_np.shape[0], mix_np.shape[-1]))
+            mix_np = np.concatenate((mix_np, dummy), axis=0)
+        
+    
+        total_mix.append(mix_np)
+        total_src.append(src_np)
+
+        num_mic.append(nmic)
+
+        
+    total_mix_np = np.asarray(total_mix,dtype=np.float32)
+    total_src_np= np.asarray(total_src,dtype=np.float32)
+    num_mic = np.asarray(num_mic, dtype=np.int64)
+
+    mix_torch = torch.from_numpy(total_mix_np)
+    src_torch = torch.from_numpy(total_src_np)
+    num_mic = torch.from_numpy(num_mic)
+
+
+    ilens = np.array([mix.shape[1] for mix in mix_torch])
+    ilens_torch = torch.from_numpy(ilens)
+
+    # stack ilens and num_mics
+    config_info = torch.stack((ilens_torch, num_mic))
+
+    return mix_torch, config_info, src_torch
